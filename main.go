@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 
 	"gopkg.in/yaml.v2"
 )
@@ -23,8 +24,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Keeps track of order of tasks up to 100 iterations
 	taskQueue := make([][]string, 100)
-	viewedTasks := make(map[string]int)
+
+	// Keeps track of tasks that have been completed and which iteration it was executed in
+	completedTasks := make(map[string]int)
 
 	// Current iteration of the task
 	taskIteration := 0
@@ -34,31 +38,42 @@ func main() {
 
 	// while there are still tasks
 	for len(c.Tasks) != taskCount {
+		tasksCompletedInCurrentIteration := 0
+
+		// Check if there any task that can be done
 		for _, task := range c.Tasks {
-			if _, ok := viewedTasks[task.Name]; !ok {
+			if _, ok := completedTasks[task.Name]; !ok {
 				// Immediately add no dependency tasks onto queue
 				if len(task.Dependencies) == 0 {
 					taskQueue[0] = append(taskQueue[0], task.Name)
-					viewedTasks[task.Name] = taskIteration
+					completedTasks[task.Name] = taskIteration
 					taskCount++
 
-					fmt.Println("adding: ", task.Name, " completed in iteration: ", taskIteration)
+					fmt.Println( task.Name, " completed in iteration: ", taskIteration)
+					tasksCompletedInCurrentIteration++
 					continue
 				}
 
 				// These handles tasks that have dependencies
-				whenCanTaskBeCompleted, canBeDone := canTaskBeDone(viewedTasks, task)
+				whenCanTaskBeCompleted, canBeDone := canTaskBeDone(completedTasks, task)
 
 				if canBeDone {
-					fmt.Println("adding: ", task.Name, " completed in iteration: ", whenCanTaskBeCompleted)
+					fmt.Println(task.Name, " completed in iteration: ", whenCanTaskBeCompleted)
 
 					taskQueue[whenCanTaskBeCompleted] = append(taskQueue[whenCanTaskBeCompleted], task.Name)
-					viewedTasks[task.Name] = whenCanTaskBeCompleted
+					completedTasks[task.Name] = whenCanTaskBeCompleted
 					taskCount++
+					tasksCompletedInCurrentIteration++
 				}
 			}
-
 		}
+
+		// If no tasks are completed in an iteration then we have cyclic dependency
+		if tasksCompletedInCurrentIteration == 0 {
+			fmt.Println("DETECTED A CYCLIC DEPENDENCY")
+			os.Exit(-1)
+		}
+
 		taskIteration++
 	}
 
@@ -84,14 +99,14 @@ func main() {
 
 }
 
-func canTaskBeDone(viewedTasks map[string]int, task Task) (int, bool) {
+func canTaskBeDone(completedTasks map[string]int, task Task) (int, bool) {
 	highestDep := 0
 
 	// Find if all dependencies has been done
 	for _, dep := range task.Dependencies {
-		if hasTaskBeenDone(viewedTasks, dep) {
-			if highestDep < viewedTasks[dep] {
-				highestDep = viewedTasks[dep]
+		if hasTaskBeenDone(completedTasks, dep) {
+			if highestDep < completedTasks[dep] {
+				highestDep = completedTasks[dep]
 			}
 		} else {
 			return -1, false
@@ -103,8 +118,8 @@ func canTaskBeDone(viewedTasks map[string]int, task Task) (int, bool) {
 }
 
 // checks if task has been completed already
-func hasTaskBeenDone(viewedTasks map[string]int, taskName string) bool {
-	if _, ok := viewedTasks[taskName]; ok {
+func hasTaskBeenDone(completedTasks map[string]int, taskName string) bool {
+	if _, ok := completedTasks[taskName]; ok {
 		return true
 	}
 	return false
