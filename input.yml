@@ -1,0 +1,16 @@
+tasks:
+  - name: F
+    dependencies: [ D, E ]
+  - name: A
+    dependencies: [ ]
+
+  - name: B
+    dependencies: [ A ]
+
+  - name: C
+    dependencies: [ A ]
+
+  - name: D
+    dependencies: [ B, C ]
+
+  - name: E
